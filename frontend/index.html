@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard IoT - Monitoramento em Tempo Real</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <i class="fas fa-gauge-high"></i>
+      <h2>IoT Monitor</h2>
+    </div>
+    <nav class="sidebar-menu">
+      <a href="#" class="menu-item active" data-view="dashboard">
+        <i class="fas fa-chart-line"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="menu-item" data-view="devices">
+        <i class="fas fa-microchip"></i>
+        <span>Dispositivos</span>
+      </a>
+      <a href="#" class="menu-item" data-view="history">
+        <i class="fas fa-history"></i>
+        <span>Histórico</span>
+      </a>
+      <a href="#" class="menu-item" data-view="settings">
+        <i class="fas fa-cog"></i>
+        <span>Configurações</span>
+      </a>
+    </nav>
+  </div>
+
+  <div class="main-container">
+    <header class="top-bar">
+      <div class="header-left">
+        <button class="menu-toggle" id="menuToggle">
+          <i class="fas fa-bars"></i>
+        </button>
+        <h1 id="pageTitle">Dashboard</h1>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator">
+          <span class="status-dot" id="connectionStatus"></span>
+          <span id="statusText">Desconectado</span>
+        </div>
+        <button class="theme-toggle" id="themeToggle">
+          <i class="fas fa-moon"></i>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- Dashboard View -->
+      <div id="dashboardView" class="view active">
+        <div class="filters">
+          <div class="filter-group">
+            <label for="systemSelect">Sistema:</label>
+            <select id="systemSelect">
+              <option value="">Carregando...</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label for="deviceSelect">Dispositivo:</label>
+            <select id="deviceSelect">
+              <option value="">Selecione um dispositivo</option>
+            </select>
+          </div>
+          <button id="refreshBtn" class="btn btn-primary">
+            <i class="fas fa-sync"></i> Atualizar
+          </button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-header">
+              <h3>Última Leitura</h3>
+              <i class="fas fa-tachometer-alt"></i>
+            </div>
+            <div class="stat-value" id="lastValue">--</div>
+            <div class="stat-time" id="lastTime">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <h3>Mínimo (24h)</h3>
+              <i class="fas fa-arrow-down"></i>
+            </div>
+            <div class="stat-value" id="minValue">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <h3>Máximo (24h)</h3>
+              <i class="fas fa-arrow-up"></i>
+            </div>
+            <div class="stat-value" id="maxValue">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header">
+              <h3>Média (24h)</h3>
+              <i class="fas fa-chart-pie"></i>
+            </div>
+            <div class="stat-value" id="avgValue">--</div>
+          </div>
+        </div>
+
+        <div class="charts-container">
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3>Gráfico de Tendência</h3>
+              <div class="chart-controls">
+                <button class="btn-small" data-period="24h">24h</button>
+                <button class="btn-small" data-period="7d">7d</button>
+                <button class="btn-small" data-period="30d">30d</button>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="mainChart"></canvas>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <h3>Distribuição (últimas 24h)</h3>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="distributionChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="realtime-section">
+          <div class="section-header">
+            <h3><i class="fas fa-broadcast-tower"></i> Atualizações em Tempo Real</h3>
+          </div>
+          <div id="realtimeLog" class="realtime-log">
+            <div class="log-item">Aguardando dados...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Devices View -->
+      <div id="devicesView" class="view">
+        <div class="section-header">
+          <h3>Dispositivos Conectados</h3>
+        </div>
+        <div id="devicesList" class="devices-list">
+          <div class="loading">Carregando dispositivos...</div>
+        </div>
+      </div>
+
+      <!-- History View -->
+      <div id="historyView" class="view">
+        <div class="section-header">
+          <h3>Histórico de Leituras</h3>
+        </div>
+        <div class="filter-group">
+          <label for="historyDevice">Dispositivo:</label>
+          <select id="historyDevice">
+            <option value="">Selecione um dispositivo</option>
+          </select>
+          <input type="date" id="historyDate">
+          <button id="exportBtn" class="btn btn-secondary">
+            <i class="fas fa-download"></i> Exportar CSV
+          </button>
+        </div>
+        <div id="historyTable" class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Valor</th>
+                <th>Dispositivo</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr><td colspan="3" class="text-center">Nenhum dado</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Settings View -->
+      <div id="settingsView" class="view">
+        <div class="section-header">
+          <h3>Configurações</h3>
+        </div>
+        <div class="settings-group">
+          <h4>Aparência</h4>
+          <label class="setting-item">
+            <input type="checkbox" id="autoRefresh">
+            <span>Atualização Automática</span>
+          </label>
+          <label class="setting-item">
+            <span>Intervalo de Atualização (segundos):</span>
+            <input type="number" id="refreshInterval" min="1" max="300" value="30">
+          </label>
+        </div>
+        <div class="settings-group">
+          <h4>Notificações</h4>
+          <label class="setting-item">
+            <input type="checkbox" id="enableNotifications">
+            <span>Ativar Notificações</span>
+          </label>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
